@@ -13,7 +13,7 @@ CORS(app, resources={r"/analyze": {"origins": ["https://twitter.com", "https://x
 # Ensure the OPENAI_API_KEY environment variable is set
 client = OpenAI()
 
-MAX_INPUT_LENGTH = 300 # Define the character limit
+MAX_INPUT_LENGTH = 300 # To avoid sending large payloads to openai
 
 @app.route('/')
 def hello_world():
@@ -32,11 +32,7 @@ def analyze_text():
 
     # Check input length
     if len(input_text) > MAX_INPUT_LENGTH:
-        return jsonify({
-            "success": False, 
-            "data": None, 
-            "error": f"Input text exceeds maximum length of {MAX_INPUT_LENGTH} characters."
-        }), 413 # Payload Too Large
+        input_text = input_text[:MAX_INPUT_LENGTH] # Truncate the input text
 
     # Updated prompt for JSON output
     prompt = f'''Analyze the following text. First, determine if the text is primarily political in nature.
