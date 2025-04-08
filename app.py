@@ -1,4 +1,5 @@
 import os
+import json # Import the json library
 from flask import Flask, request, jsonify
 from openai import OpenAI
 
@@ -23,9 +24,19 @@ def analyze_text():
     if not input_text:
         return jsonify({"success": False, "data": None, "error": "Missing 'text' field in request body"}), 400
 
-    prompt = f'''You are a political ideology classifier. Analyze the following text and categorize it as either "left", "centre", or "right" leaning based on its political perspective. Consider the text's stance on economics, social issues, role of government, tradition vs. change, and hierarchical vs. egalitarian values.
-Respond with exactly one word only: "left", "centre", or "right". Do not include any other text, explanation, or reasoning in your response.
-Text to classify:
+    # Updated prompt for JSON output
+    prompt = f'''Analyze the following text. First, determine if the text is primarily political in nature.
+If it is political, classify its leaning as "left", "centre", or "right" based on its perspective (economics, social issues, government role, etc.).
+Respond ONLY with a JSON object adhering strictly to this format:
+{{
+  "is_political": <true_or_false>,
+  "political_leaning": <"left" | "centre" | "right" | null>
+}}
+- "political_leaning" MUST be null if "is_political" is false.
+- "political_leaning" MUST be one of "left", "centre", or "right" if "is_political" is true.
+Do not include any other text, explanation, or reasoning outside the JSON object.
+
+Text to analyze:
 {input_text}'''
 
     try:
@@ -34,34 +45,49 @@ Text to classify:
             messages=[
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=5, # Allow a few tokens for the single word response
+            response_format={"type": "json_object"}, # Enable JSON mode
+            max_tokens=50, # Increased max_tokens for JSON structure
             temperature=0 # For deterministic output
         )
-        classification = response.choices[0].message.content.strip().lower()
+        
+        response_content = response.choices[0].message.content
 
-        # Validate the response from OpenAI
-        if classification not in ["left", "centre", "right"]:
-            # You might want to handle this case differently, e.g., log it, or try again.
-            # For now, we'll return an error indicating an unexpected response.
-            return jsonify({
-                "success": False,
-                "data": None,
-                "error": f"Unexpected response from classification model: {classification}"
-            }), 500
+        # Parse the JSON response from OpenAI
+        try:
+            analysis_data = json.loads(response_content)
+        except json.JSONDecodeError:
+            app.logger.error(f"Failed to decode JSON response from OpenAI: {response_content}")
+            return jsonify({"success": False, "data": None, "error": "Invalid JSON response from analysis model"}), 500
 
+        # Validate the structure and content of the parsed JSON
+        if not isinstance(analysis_data, dict) or 'is_political' not in analysis_data or not isinstance(analysis_data['is_political'], bool):
+            app.logger.error(f"Invalid structure or type in OpenAI response: {analysis_data}")
+            return jsonify({"success": False, "data": None, "error": "Invalid data structure received from analysis model"}), 500
+
+        is_political = analysis_data['is_political']
+        political_leaning = analysis_data.get('political_leaning') # Use .get() for safety
+
+        if is_political:
+            # If political, leaning must be one of the specific strings
+            valid_leanings = ["left", "centre", "right"]
+            if 'political_leaning' not in analysis_data or political_leaning not in valid_leanings:
+                 app.logger.error(f"Invalid political_leaning value when is_political is true: {analysis_data}")
+                 return jsonify({"success": False, "data": None, "error": "Invalid political leaning value received from analysis model"}), 500
+        # No explicit check needed for leaning when is_political is false, per user requirement.
+        # The prompt requests null, but we are not strictly enforcing it here if false.
+
+        # Construct the final successful response using the validated data
         result = {
             "success": True,
-            "data": {
-                "is_political": True, # Based on the prompt, we assume it's political if classified
-                "political_leaning": classification
-            },
+            "data": analysis_data, # Use the dictionary directly
             "error": None
         }
         return jsonify(result), 200
 
     except Exception as e:
         # Log the exception for debugging
-        app.logger.error(f"Error calling OpenAI API: {e}")
+        # This catches API errors, network issues, etc.
+        app.logger.error(f"Error during OpenAI call or processing: {e}")
         return jsonify({"success": False, "data": None, "error": "Failed to analyze text due to an internal error"}), 500
 
 if __name__ == '__main__':
