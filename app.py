@@ -1,13 +1,19 @@
 import os
 import json # Import the json library
 from flask import Flask, request, jsonify
+from flask_cors import CORS # Import CORS
 from openai import OpenAI
 
 app = Flask(__name__)
 
+# Configure CORS - Allow specific origins for the /analyze route
+CORS(app, resources={r"/analyze": {"origins": ["https://twitter.com", "https://x.com"]}})
+
 # Configure OpenAI client
 # Ensure the OPENAI_API_KEY environment variable is set
 client = OpenAI()
+
+MAX_INPUT_LENGTH = 300 # Define the character limit
 
 @app.route('/')
 def hello_world():
@@ -23,6 +29,14 @@ def analyze_text():
 
     if not input_text:
         return jsonify({"success": False, "data": None, "error": "Missing 'text' field in request body"}), 400
+
+    # Check input length
+    if len(input_text) > MAX_INPUT_LENGTH:
+        return jsonify({
+            "success": False, 
+            "data": None, 
+            "error": f"Input text exceeds maximum length of {MAX_INPUT_LENGTH} characters."
+        }), 413 # Payload Too Large
 
     # Updated prompt for JSON output
     prompt = f'''Analyze the following text. First, determine if the text is primarily political in nature.
@@ -91,5 +105,7 @@ Text to analyze:
         return jsonify({"success": False, "data": None, "error": "Failed to analyze text due to an internal error"}), 500
 
 if __name__ == '__main__':
+    # When running locally, Flask dev server handles CORS differently.
+    # Gunicorn relies on the CORS configuration above.
     # Make sure to set the OPENAI_API_KEY environment variable before running
     app.run(debug=True) 
