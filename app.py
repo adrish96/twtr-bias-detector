@@ -83,8 +83,6 @@ Text to analyze:
             if 'political_leaning' not in analysis_data or political_leaning not in valid_leanings:
                  app.logger.error(f"Invalid political_leaning value when is_political is true: {analysis_data}")
                  return jsonify({"success": False, "data": None, "error": "Invalid political leaning value received from analysis model"}), 500
-        # No explicit check needed for leaning when is_political is false, per user requirement.
-        # The prompt requests null, but we are not strictly enforcing it here if false.
 
         # Construct the final successful response using the validated data
         result = {

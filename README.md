@@ -28,8 +28,8 @@ See the full API specification for more details.
 
 1.  **Clone the repository:**
     ```bash
-    git clone <your-repo-url>
-    cd <your-repo-directory>
+    git clone https://github.com/adrish96/twtr-bias-detector.git
+    cd twtr-bias-detector
     ```
 2.  **Create and activate a virtual environment:**
     ```bash
@@ -69,5 +69,3 @@ The backend is configured using `Flask-CORS` to only allow requests to the `/ana
 *   Flask-CORS
 *   OpenAI
 *   Gunicorn (for deployment)
-
-See `requirements.txt` for specific versions. 
